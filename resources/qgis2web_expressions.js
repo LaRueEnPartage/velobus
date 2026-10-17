@@ -763,3 +763,17 @@ function fnc__specialcol_(values, context) {
 function fnc_project_color(values, context) {
     return false;
 };
+
+
+
+function exp_label_lieux_1_eval_expression(context) {
+    // concat(Lieux, ' ', Nom)
+
+    var feature = context.feature;
+    
+    if (feature.properties) {
+        return fnc_concat([feature.get('Lieux') ,' ',feature.get('Nom') ], context);
+    } else {
+        return fnc_concat([feature.get('Lieux') ,' ',feature.get('Nom') ], context);
+    }
+}
