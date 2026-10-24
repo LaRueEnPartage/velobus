@@ -427,12 +427,20 @@
         map.addLayer(layer_ligne1_5);
 
 			// Décalage visuel des lignes de vélobus
+
 function appliquerDecalage(couche, valeur) {
     couche.eachLayer(function (element) {
-        if (typeof element.setOffset === 'function') {
+
+        if (element.eachLayer) {
+            // Si l'élément est un groupe, traiter ses sous-couches.
+            element.eachLayer(function (sousCouche) {
+                if (typeof sousCouche.setOffset === 'function') {
+                    sousCouche.setOffset(valeur);
+                }
+            });
+
+        } else if (typeof element.setOffset === 'function') {
             element.setOffset(valeur);
-        } else {
-            console.warn("Décalage non appliqué à un élément :", element);
         }
     });
 }
