@@ -396,22 +396,7 @@
 			layer.bindPopup(content, { maxHeight: 400 });
         }
 
-		// Décalage visuel des lignes de vélobus
-function appliquerDecalage(couche, valeur) {
-    couche.eachLayer(function (element) {
-        if (typeof element.setOffset === 'function') {
-            element.setOffset(valeur);
-        }
-    });
-}
-
-// Lignes 1 et 2 : décalages opposés
-appliquerDecalage(layer_ligne1_5, -6);
-appliquerDecalage(layer_ligne2_3, 6);
-
-// Lignes 4 et 5 : décalages opposés
-appliquerDecalage(layer_ligne4_4, -6);
-appliquerDecalage(layer_ligne5_2, 6);
+		
 
         function style_ligne1_5_0() {
             return {
