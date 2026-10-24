@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <style>
+                html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #choix-ligne {
+            padding: 10px;
+            background: white;
+            font-family: Arial, sans-serif;
+            position: relative;
+            z-index: 1000;
+        }
+
+        #select-ligne {
+            margin-left: 8px;
+            padding: 7px;
+            font-size: 15px;
+            max-width: 100%;
+        }
+
+        #map {
+            width: 100%;
+            height: calc(100% - 55px);
+        }
+        </style>
+        <title></title>
+    </head>
+     <body>
+        <div id="choix-ligne">
+            <label for="select-ligne"><strong>Choisir un vélobus :</strong></label>
+            <select id="select-ligne">
+                <option value="1" selected>Ligne 1 — Corbiac / Collège Chedid</option>
+                <option value="2">Ligne 2 — Bécut / École centre</option>
+                <option value="4">Ligne 4 — Courtade / École centre</option>
+                <option value="5">Ligne 5 — Tauzins / École centre</option>
+            </select>
+        </div>
+
+        <div id="map"></div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="data/lieux_1.js"></script>
+        <script src="data/ligne5_2.js"></script>
+        <script src="data/ligne2_3.js"></script>
+        <script src="data/ligne4_4.js"></script>
+        <script src="data/ligne1_5.js"></script>
+        <script src="data/arrets_6.js"></script>
+        <script>
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[44.86178826417456,-0.6933789825946087],[44.87963059829239,-0.6577247678514927]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/qgis2web/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // modify popup if contains media
+        function addClassToPopupIfMedia(content, popup) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            var imgTd = tempDiv.querySelector('td img');
+            if (imgTd) {
+                var src = imgTd.getAttribute('src');
+                if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                    popup._contentNode.classList.add('media');
+                    var img = popup._contentNode.querySelector('td img');
+                    if (img) {
+                        // If already loaded (cache), update immediately
+                        if (img.complete && img.naturalHeight > 0) {
+                            popup.update();
+                        } else {
+                            img.addEventListener('load', function() {
+                                popup.update();
+                            });
+                            img.addEventListener('error', function() {
+                                popup.update();
+                            });
+                        }
+                    }
+                } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                    var audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = src;
+                    imgTd.parentNode.replaceChild(audio, imgTd);
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.src = src;
+                    video.style.width = "400px";
+                    video.style.height = "300px";
+                    video.style.maxHeight = "60vh";
+                    video.style.maxWidth = "60vw";
+                    imgTd.parentNode.replaceChild(video, imgTd);
+                    popup._contentNode.classList.add('media');
+                    // Aggiorna il popup quando il video carica i metadati
+                    video.addEventListener('loadedmetadata', function() {
+                        popup.update();
+                    });
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else {
+                    popup._contentNode.classList.remove('media');
+                }
+            } else {
+                popup._contentNode.classList.remove('media');
+            }
+        }
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+        map.createPane('pane_WazeWorld_0');
+        map.getPane('pane_WazeWorld_0').style.zIndex = 400;
+        var layer_WazeWorld_0 = L.tileLayer('https://worldtiles3.waze.com/tiles/{z}/{x}/{y}.png', {
+            pane: 'pane_WazeWorld_0',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 20
+        });
+        layer_WazeWorld_0;
+        map.addLayer(layer_WazeWorld_0);
+        function pop_lieux_1(feature, layer) {
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_lieux_1_0(feature) {
+            switch(String(feature.properties['Lieux'])) {
+                case 'Collège':
+                    return {
+                pane: 'pane_lieux_1',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/lieux_1.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+                    break;
+                case 'École':
+                    return {
+                pane: 'pane_lieux_1',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/lieux_1.svg',
+            iconSize: [57.0, 57.0]
+        }),
+                interactive: false,
+            }
+                    break;
+            }
+        }
+        map.createPane('pane_lieux_1');
+        map.getPane('pane_lieux_1').style.zIndex = 401;
+        map.getPane('pane_lieux_1').style['mix-blend-mode'] = 'normal';
+        var layer_lieux_1 = new L.geoJson(json_lieux_1, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_lieux_1',
+            layerName: 'layer_lieux_1',
+            pane: 'pane_lieux_1',
+            onEachFeature: pop_lieux_1,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_lieux_1_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_lieux_1);
+        map.addLayer(layer_lieux_1);
+        function pop_ligne5_2(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['fid'] !== null ? autolinker.link(String(feature.properties['fid']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['id'] !== null ? autolinker.link(String(feature.properties['id']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['layer'] !== null ? autolinker.link(String(feature.properties['layer']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['path'] !== null ? autolinker.link(String(feature.properties['path']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_ligne5_2_0() {
+            return {
+                pane: 'pane_ligne5_2',
+                opacity: 1,
+                color: 'rgba(7,157,9,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 8.0,
+                fillOpacity: 0,
+                interactive: false,
+            }
+        }
+        map.createPane('pane_ligne5_2');
+        map.getPane('pane_ligne5_2').style.zIndex = 402;
+        map.getPane('pane_ligne5_2').style['mix-blend-mode'] = 'normal';
+        var layer_ligne5_2 = new L.geoJson(json_ligne5_2, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_ligne5_2',
+            layerName: 'layer_ligne5_2',
+            pane: 'pane_ligne5_2',
+            onEachFeature: pop_ligne5_2,
+            style: style_ligne5_2_0,
+        });
+        bounds_group.addLayer(layer_ligne5_2);
+        map.addLayer(layer_ligne5_2);
+        function pop_ligne2_3(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['fid'] !== null ? autolinker.link(String(feature.properties['fid']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['id'] !== null ? autolinker.link(String(feature.properties['id']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['layer'] !== null ? autolinker.link(String(feature.properties['layer']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['path'] !== null ? autolinker.link(String(feature.properties['path']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_ligne2_3_0() {
+            return {
+                pane: 'pane_ligne2_3',
+                opacity: 1,
+                color: 'rgba(221,209,20,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 8.0,
+                fillOpacity: 0,
+                interactive: false,
+            }
+        }
+        map.createPane('pane_ligne2_3');
+        map.getPane('pane_ligne2_3').style.zIndex = 403;
+        map.getPane('pane_ligne2_3').style['mix-blend-mode'] = 'normal';
+        var layer_ligne2_3 = new L.geoJson(json_ligne2_3, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_ligne2_3',
+            layerName: 'layer_ligne2_3',
+            pane: 'pane_ligne2_3',
+            onEachFeature: pop_ligne2_3,
+            style: style_ligne2_3_0,
+        });
+        bounds_group.addLayer(layer_ligne2_3);
+        map.addLayer(layer_ligne2_3);
+        function pop_ligne4_4(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['fid'] !== null ? autolinker.link(String(feature.properties['fid']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['id'] !== null ? autolinker.link(String(feature.properties['id']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['layer'] !== null ? autolinker.link(String(feature.properties['layer']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['path'] !== null ? autolinker.link(String(feature.properties['path']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_ligne4_4_0() {
+            return {
+                pane: 'pane_ligne4_4',
+                opacity: 1,
+                color: 'rgba(252,24,232,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 8.0,
+                fillOpacity: 0,
+                interactive: false,
+            }
+        }
+        map.createPane('pane_ligne4_4');
+        map.getPane('pane_ligne4_4').style.zIndex = 404;
+        map.getPane('pane_ligne4_4').style['mix-blend-mode'] = 'normal';
+        var layer_ligne4_4 = new L.geoJson(json_ligne4_4, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_ligne4_4',
+            layerName: 'layer_ligne4_4',
+            pane: 'pane_ligne4_4',
+            onEachFeature: pop_ligne4_4,
+            style: style_ligne4_4_0,
+        });
+        bounds_group.addLayer(layer_ligne4_4);
+        map.addLayer(layer_ligne4_4);
+        function pop_ligne1_5(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['fid'] !== null ? autolinker.link(String(feature.properties['fid']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['id'] !== null ? autolinker.link(String(feature.properties['id']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['layer'] !== null ? autolinker.link(String(feature.properties['layer']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['path'] !== null ? autolinker.link(String(feature.properties['path']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_ligne1_5_0() {
+            return {
+                pane: 'pane_ligne1_5',
+                opacity: 1,
+                color: 'rgba(5,24,183,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 8.0,
+                fillOpacity: 0,
+                interactive: false,
+            }
+        }
+        map.createPane('pane_ligne1_5');
+        map.getPane('pane_ligne1_5').style.zIndex = 405;
+        map.getPane('pane_ligne1_5').style['mix-blend-mode'] = 'normal';
+        var layer_ligne1_5 = new L.geoJson(json_ligne1_5, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_ligne1_5',
+            layerName: 'layer_ligne1_5',
+            pane: 'pane_ligne1_5',
+            onEachFeature: pop_ligne1_5,
+            style: style_ligne1_5_0,
+        });
+        bounds_group.addLayer(layer_ligne1_5);
+        map.addLayer(layer_ligne1_5);
+        function pop_arrets_6(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">fid</th>\
+                        <td class="visible-with-data" id="fid">' + (feature.properties['fid'] !== null ? autolinker.link(String(feature.properties['fid']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['arrets'] !== null ? autolinker.link(String(feature.properties['arrets']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+        function style_arrets_6_0(feature) {
+    return {
+        pane: 'pane_arrets_6',
+        radius: 8,
+        opacity: 1,
+        color: 'rgba(35,35,35,1.0)',
+        weight: 1,
+        fill: true,
+        fillOpacity: 1,
+        fillColor: 'rgba(255,255,255,1.0)',
+        interactive: true
+    };
+}
+        map.createPane('pane_arrets_6');
+        map.getPane('pane_arrets_6').style.zIndex = 406;
+        map.getPane('pane_arrets_6').style['mix-blend-mode'] = 'normal';
+        var layer_arrets_6 = new L.geoJson(json_arrets_6, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_arrets_6',
+            layerName: 'layer_arrets_6',
+            pane: 'pane_arrets_6',
+            onEachFeature: pop_arrets_6,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_arrets_6_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_arrets_6);
+        map.addLayer(layer_arrets_6);
+        // =====================================================
+// GESTION DU VÉLOBUS : CHOIX DE LA LIGNE
+// =====================================================
+
+// Horaires par ligne et par identifiant d'arrêt.
+// Les identifiants correspondent au champ "id" de arrets_6.js.
+
+var horairesVelobus = {
+    "1": {
+        "1": "7h32",
+        "3": "7h34",
+        "4": "7h36",
+        "5": "7h38",
+        "10": "7h25",
+        "11": "7h28",
+        "12": "7h30",
+        "16": "7h40",
+        "17": "7h43",
+        "18": "7h45"
+    },
+    "2": {
+        "1": "8h08",
+        "2": "8h06",
+        "3": "8h08",
+        "4": "8h12",
+        "5": "8h14",
+        "6": "8h20",
+        "12": "8h06"
+    },
+    "4": {
+        "6": "8h20",
+        "7": "8h11",
+        "8": "8h09",
+        "9": "8h06",
+        "15": "8h14",
+        "22": "8h15",
+        "23": "8h17"
+    },
+    "5": {
+        "6": "8h20",
+        "14": "8h11",
+        "15": "8h14",
+        "19": "8h06",
+        "20": "8h08",
+        "21": "8h09",
+        "22": "8h15",
+        "23": "8h17"
+    }
+};
+
+// Association entre le numéro de ligne et sa couche Leaflet.
+var couchesVelobus = {
+    "1": layer_ligne1_5,
+    "2": layer_ligne2_3,
+    "4": layer_ligne4_4,
+    "5": layer_ligne5_2
+};
+
+// Nom de chaque ligne pour les fenêtres d'information.
+var nomsVelobus = {
+    "1": "Ligne 1 — Corbiac / Collège Chedid",
+    "2": "Ligne 2 — Bécut / École centre",
+    "4": "Ligne 4 — Courtade / École centre",
+    "5": "Ligne 5 — Tauzins / École centre"
+};
+
+// Met à jour la carte à partir de la ligne sélectionnée.
+function afficherLigneVelobus(numeroLigne) {
+
+    var horaires = horairesVelobus[numeroLigne];
+
+    // 1. Afficher uniquement le tracé sélectionné.
+    Object.keys(couchesVelobus).forEach(function(numero) {
+
+        var couche = couchesVelobus[numero];
+
+        if (numero === numeroLigne) {
+            if (!map.hasLayer(couche)) {
+                map.addLayer(couche);
+            }
+        } else {
+            if (map.hasLayer(couche)) {
+                map.removeLayer(couche);
+            }
+        }
+    });
+
+    // 2. Filtrer les arrêts et adapter leurs fenêtres d'information.
+    layer_arrets_6.eachLayer(function(marker) {
+
+        var proprietes = marker.feature.properties;
+        var idArret = String(proprietes.id);
+        var nomArret = proprietes.arrets;
+        var horaire = horaires[idArret];
+
+        var visible = horaire !== undefined;
+
+        // Rendre le point visible uniquement s'il appartient à la ligne.
+        marker.setStyle({
+            opacity: visible ? 1 : 0,
+            fillOpacity: visible ? 1 : 0,
+            color: 'rgba(35,35,35,1.0)',
+            fillColor: 'rgba(255,255,255,1.0)'
+        });
+
+        // Empêcher de cliquer sur les arrêts masqués.
+        marker.options.interactive = visible;
+
+        if (marker._path) {
+            marker._path.style.pointerEvents =
+                visible ? 'auto' : 'none';
+        }
+
+        // Mettre à jour la fenêtre d'information.
+        if (visible) {
+
+            marker.bindPopup(
+                '<div style="font-family:Arial,sans-serif;">' +
+                    '<strong>' + nomArret + '</strong><br>' +
+                    nomsVelobus[numeroLigne] + '<br>' +
+                    '<strong>Horaire : ' + horaire + '</strong>' +
+                '</div>'
+            );
+        } else {
+            marker.closePopup();
+        }
+    });
+}
+
+// Réagir au changement de sélection.
+document.getElementById('select-ligne').addEventListener(
+    'change',
+    function() {
+        afficherLigneVelobus(this.value);
+    }
+);
+
+// Afficher la ligne 1 au démarrage.
+afficherLigneVelobus('1');
+        const url = {"Nominatim OSM": "https://nominatim.openstreetmap.org/search?format=geojson&addressdetails=1&",
+        "France BAN": "https://api-adresse.data.gouv.fr/search/?"}
+        var photonControl = L.control.photon({
+            url: url["Nominatim OSM"],
+            feedbackLabel: '',
+            position: 'topleft',
+            includePosition: true,
+            initial: true,
+            // resultsHandler: myHandler,
+        }).addTo(map);
+        photonControl._container.childNodes[0].style.borderRadius="10px"
+        // Create a variable to store the geoJSON data
+        var x = null;
+        // Create a variable to store the marker
+        var marker = null;
+        // Add an event listener to the Photon control to create a marker from the returned geoJSON data
+        var z = null;
+        photonControl.on('selected', function(e) {
+            console.log(photonControl.search.resultsContainer);
+            if (x != null) {
+                map.removeLayer(obj3.marker);
+                map.removeLayer(x);
+            }
+            obj2.gcd = e.choice;
+            x = L.geoJSON(obj2.gcd).addTo(map);
+            var label = typeof obj2.gcd.properties.label === 'undefined' ? obj2.gcd.properties.display_name : obj2.gcd.properties.label;
+            obj3.marker = L.marker(x.getLayers()[0].getLatLng()).bindPopup(label).addTo(map);
+            map.setView(x.getLayers()[0].getLatLng(), 17);
+            z = typeof e.choice.properties.label === 'undefined'? e.choice.properties.display_name : e.choice.properties.label;
+            console.log(e);
+            e.target.input.value = z;
+        });
+        var search = document.getElementsByClassName("leaflet-photon leaflet-control")[0];
+        search.classList.add("leaflet-control-search")
+        search.style.display = "flex";
+        search.style.backgroundColor="rgba(255,255,255,0.5)" 
+
+        // Create the new button element
+        var button = document.createElement("div");
+        button.id = "gcd-button-control";
+        button.className = "gcd-gl-btn fa fa-search search-button";
+
+        // Insert the button at the beginning of the search control
+        search.insertBefore(button, search.firstChild);
+        last = search.lastChild;
+        last.style.display = "none";
+        button.addEventListener("click", function (e) {
+            if (last.style.display === "none") {
+                last.style.display = "block";
+            } else {
+                last.style.display = "none";
+            }
+        });
+        var overlaysTree = [
+            {label: 'arrets<br /><table><tr><td style="text-align: center;"><img src="legend/arrets_6_0.png" /></td><td></td></tr></table>', layer: layer_arrets_6},
+        {label: '<b>Corbiac - Collège Chedid</b>',  selectAllCheckbox: true, children: [
+            {label: '<img src="legend/ligne1_5.png" /> ligne 1', layer: layer_ligne1_5},]},
+        {label: '<b>Courtade - école centre</b>',  selectAllCheckbox: true, children: [
+            {label: '<img src="legend/ligne4_4.png" /> ligne 4', layer: layer_ligne4_4},]},
+        {label: '<b>Bécut - école centre</b>',  selectAllCheckbox: true, children: [
+            {label: '<img src="legend/ligne2_3.png" /> ligne 2', layer: layer_ligne2_3},]},
+        {label: '<b>Tauzin - école  centre</b>',  selectAllCheckbox: true, children: [
+            {label: '<img src="legend/ligne5_2.png" /> ligne 5', layer: layer_ligne5_2},]},
+            {label: 'lieux<br /><table><tr><td style="text-align: center;"><img src="legend/lieux_1_Collège0.png" /></td><td>Collège</td></tr><tr><td style="text-align: center;"><img src="legend/lieux_1_École1.png" /></td><td>École</td></tr></table>', layer: layer_lieux_1},
+            {label: "Waze (World)", layer: layer_WazeWorld_0},]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: false, 
+        });
+        lay.addTo(map);
+		document.addEventListener("DOMContentLoaded", function() {
+            // set new Layers List height which considers toggle icon
+            function newLayersListHeight() {
+                var layerScrollbarElement = document.querySelector('.leaflet-control-layers-scrollbar');
+                if (layerScrollbarElement) {
+                    var layersListElement = document.querySelector('.leaflet-control-layers-list');
+                    var originalHeight = layersListElement.style.height 
+                        || window.getComputedStyle(layersListElement).height;
+                    var newHeight = parseFloat(originalHeight) - 50;
+                    layersListElement.style.height = newHeight + 'px';
+                }
+            }
+            var isLayersListExpanded = true;
+            var controlLayersElement = document.querySelector('.leaflet-control-layers');
+            var toggleLayerControl = document.querySelector('.leaflet-control-layers-toggle');
+            // toggle Collapsed/Expanded and apply new Layers List height
+            toggleLayerControl.addEventListener('click', function() {
+                if (isLayersListExpanded) {
+                    controlLayersElement.classList.remove('leaflet-control-layers-expanded');
+                } else {
+                    controlLayersElement.classList.add('leaflet-control-layers-expanded');
+                }
+                isLayersListExpanded = !isLayersListExpanded;
+                newLayersListHeight()
+            });	
+			// apply new Layers List height if toggle layerstree
+			if (controlLayersElement) {
+				controlLayersElement.addEventListener('click', function(event) {
+					var toggleLayerHeaderPointer = event.target.closest('.leaflet-layerstree-header-pointer span');
+					if (toggleLayerHeaderPointer) {
+						newLayersListHeight();
+					}
+				});
+			}
+            // Collapsed/Expanded at Start to apply new height
+            setTimeout(function() {
+                toggleLayerControl.click();
+            }, 10);
+            setTimeout(function() {
+                toggleLayerControl.click();
+            }, 10);
+            // Collapsed touch/small screen
+            var isSmallScreen = window.innerWidth < 650;
+            if (isSmallScreen) {
+                setTimeout(function() {
+                    controlLayersElement.classList.remove('leaflet-control-layers-expanded');
+                    isLayersListExpanded = !isLayersListExpanded;
+                }, 500);
+            }  
+        });       
+        setBounds();
+        var i = 0;
+        layer_lieux_1.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((exp_label_lieux_1_eval_expression(context) !== null?String('<div style="color: #323232; font-size: 10pt; font-family: \'Open Sans\', sans-serif;">' + exp_label_lieux_1_eval_expression(context)).replace(/\\n/g, '<br>') + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_lieux_1'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_ligne5_2.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['id'] !== null?String('<div style="color: #323232; font-size: 10pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['id']).replace(/\\n/g, '<br>') + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_ligne5_2'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_ligne2_3.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['id'] !== null?String('<div style="color: #323232; font-size: 10pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['id']).replace(/\\n/g, '<br>') + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_ligne2_3'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_ligne4_4.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['id'] !== null?String('<div style="color: #323232; font-size: 10pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['id']).replace(/\\n/g, '<br>') + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_ligne4_4'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_ligne1_5.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['id'] !== null?String('<div style="color: #323232; font-size: 10pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['id']).replace(/\\n/g, '<br>') + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_ligne1_5'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_arrets_6.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip(
+    String(layer.feature.properties['arrets'] || ''),
+    {
+        permanent: true,
+        direction: 'top',
+        offset: [0, -8],
+        className: 'css_arrets_6'
+    }
+);
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        resetLabels([layer_lieux_1,layer_ligne5_2,layer_ligne2_3,layer_ligne4_4,layer_ligne1_5,layer_arrets_6]);
+        map.on("zoomend", function(){
+            resetLabels([layer_lieux_1,layer_ligne5_2,layer_ligne2_3,layer_ligne4_4,layer_ligne1_5,layer_arrets_6]);
+        });
+        map.on("layeradd", function(){
+            resetLabels([layer_lieux_1,layer_ligne5_2,layer_ligne2_3,layer_ligne4_4,layer_ligne1_5,layer_arrets_6]);
+        });
+        map.on("layerremove", function(){
+            resetLabels([layer_lieux_1,layer_ligne5_2,layer_ligne2_3,layer_ligne4_4,layer_ligne1_5,layer_arrets_6]);
+        });
+        </script>
+    </body>
+</html>
