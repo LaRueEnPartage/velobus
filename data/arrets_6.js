@@ -1,7 +1,7 @@
 var json_arrets_6 = {"type":"FeatureCollection","name":"arrets_6","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:OGC:1.3:CRS84"}},
                      "features":[
                        {"type":"Feature","properties":{"fid":"21","id":"2","arrets":"Magellan"},"geometry":{"type":"Point","coordinates":[-0.689020804511575,44.870464173473998]}},
-                       {"type":"Feature","properties":{"fid":"22","id":"3","arrets":"Venteille"},"geometry":{"type":"Point","coordinates":[-0.687437346786635,44.870844874963417]}},
+                       {"type":"Feature","properties":{"fid":"22","id":"3","arrets":"Bicentenaire"},"geometry":{"type":"Point","coordinates":[-0.687437346786635,44.870844874963417]}},
                        {"type":"Feature","properties":{"fid":"35","id":"19","arrets":"Tauzins"},"geometry":{"type":"Point","coordinates":[-0.678326418577326,44.885230878857641]}},
                        {"type":"Feature","properties":{"fid":"36","id":"20","arrets":"Sabliere"},"geometry":{"type":"Point","coordinates":[-0.67489334703411,44.885615962331968]}},
                        {"type":"Feature","properties":{"fid":"37","id":"21","arrets":"Courtade"},"geometry":{"type":"Point","coordinates":[-0.674985234484299,44.884722509316013]}},
