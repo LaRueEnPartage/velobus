@@ -1,11 +1,18 @@
 <!doctype html>
-<html lang="en">
+
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
+        <!-- Aperçu du lien sur Facebook -->
+        <meta property="og:type" content="website">
+        <meta property="og:title" content="Vélobus du Haillan">
+        <meta property="og:description" content="Découvrez les itinéraires et les arrêts des lignes de vélobus au Haillan.">
+        <meta property="og:image" content="https://https://larueenpartage.github.io/velobus/images/velobus.jpg">
+        <meta property="og:url" content="https://larueenpartage.github.io/velobus/">
+<html lang="en">
         <link rel="stylesheet" href="css/leaflet.css">
         <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
         <link rel="stylesheet" href="css/qgis2web.css">
@@ -621,6 +628,9 @@ function afficherLigneVelobus(numeroLigne) {
         // Mettre à jour la fenêtre d'information.
         if (visible) {
 
+
+            
+
             marker.bindPopup(
                 '<div style="font-family:Arial,sans-serif;">' +
                     '<strong>' + nomArret + '</strong><br>' +
@@ -770,28 +780,48 @@ afficherLigneVelobus('1');
             }  
         });       
         setBounds();
-        var i = 0;
-        layer_lieux_1.eachLayer(function(layer) {
-            var context = {
-                feature: layer.feature,
-                variables: {}
-            };
-            //test
-			
-			layer.bindTooltip((exp_label_lieux_1_eval_expression(context) !== null?String('<div style="color: #323232; font-size: 10pt; font-family: \'Open Sans\', sans-serif;">' + exp_label_lieux_1_eval_expression(context)).replace(/\\n/g, '<br>') + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_lieux_1'});
-            /*
-			layer.bindTooltip(
-    String(layer.feature.properties['lieux_1'] || ''),
-    {   permanent: true,
-        direction: 'top',
-        offset: [0, -8],
-        className: 'css_arrets_6'  });
-			*/
-			//test
-			labels.push(layer);
-								}
 
-							   );
+var i = 0;
+layer_lieux_1.eachLayer(function(layer) {
+    var props = layer.feature.properties;
+
+    // Type et nom du lieu
+    var type = props['Lieux'];
+    var nom = props['Nom'];
+
+    // Ignorer les valeurs absentes ou égales à false
+    if (type && nom &&
+        String(type).toLowerCase() !== 'false' &&
+        String(nom).toLowerCase() !== 'false') {
+
+        var etiquette = '<div style="' +
+            'background-color: white;' +
+            'color: #323232;' +
+            'font-size: 10pt;' +
+            'font-family: Open Sans, sans-serif;' +
+            'padding: 1px 5px;' +
+            'border: 1px solid #cccccc;' +
+            'border-radius: 8px;' +
+            'white-space: nowrap;' +
+            'box-shadow: 0 2px 5px rgba(0,0,0,0.2);">' +
+            type + ' ' + nom +
+            '</div>';
+
+        layer.bindTooltip(etiquette, {
+            permanent: true,
+            direction: 'top',
+            offset: [0, 56],
+            className: 'css_lieux_1'
+        });
+
+        labels.push(layer);
+        totalMarkers += 1;
+        layer.added = true;
+        addLabel(layer, i);
+        i++;
+    }
+});
+
 			
         var i = 0;
         layer_ligne5_2.eachLayer(function(layer) {
